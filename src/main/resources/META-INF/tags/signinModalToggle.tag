@@ -1,4 +1,4 @@
-<%@ taglib uri="http://java.ftng.net/jstl/core" prefix="ftng" %>
+<%@ taglib uri="http://java.codelogger.org/jstl/core" prefix="ftng" %>
 <%@ attribute name="label" required="false" type="java.lang.String" %>
 
 <ftng:modalToggle modalId="loginModal" styleClass="btn-link">

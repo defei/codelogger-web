@@ -1,9 +1,9 @@
 <taglib version="2.1" xmlns="http://java.sun.com/xml/ns/javaee"
 		>
-	<description>Ftng JSTL Tag Library</description>
+	<description>Codelogger JSTL Tag Library</description>
 	<tlib-version>1.0</tlib-version>
-	<short-name>FtngTag</short-name>
-	<uri>http://java.ftng.net/jstl/core</uri>
+	<short-name>CodeloggerTag</short-name>
+	<uri>http://java.codelogger.org/jstl/core</uri>
 	<tag-file>
 		<name>bootstrapHtml</name>
 		<path>/META-INF/tags/bootstrapHtml.tag</path>

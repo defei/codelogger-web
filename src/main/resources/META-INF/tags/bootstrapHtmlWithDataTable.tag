@@ -1,4 +1,4 @@
-<%@ taglib prefix="ftng" uri="http://java.ftng.net/jstl/core" %>
+<%@ taglib prefix="ftng" uri="http://java.codelogger.org/jstl/core" %>
 <%@ attribute name="title" required="true" type="java.lang.String" %>
 <%@ attribute name="css" fragment="true" %>
 <%@ attribute name="script" fragment="true" %>

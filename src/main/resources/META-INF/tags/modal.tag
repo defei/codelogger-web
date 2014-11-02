@@ -1,4 +1,4 @@
-<%@ taglib uri="http://java.ftng.net/jstl/core" prefix="ftng" %>
+<%@ taglib uri="http://java.codelogger.org/jstl/core" prefix="ftng" %>
 <%@ attribute name="id" required="true" type="java.lang.String" %>
 <%@ attribute name="title" required="true" type="java.lang.String" %>
 <div class="modal fade" id="${id}" tabindex="-1" role="dialog">

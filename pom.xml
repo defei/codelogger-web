@@ -8,6 +8,8 @@
 		<version>1.0.0</version>
 	</parent>
 	<artifactId>web</artifactId>
+	<version>1.0.1-SNAPSHOT</version>
+	
 	<name>Codelogger Web</name>
     <description>The web lib used to easy build a java web application with Spring MVC、Spring JPA and Hibernate.</description>
     <url>https://github.com/defei/codelogger-web</url>

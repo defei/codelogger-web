@@ -27,7 +27,7 @@ public abstract class MarvelFilter<T extends MarvelServlet> implements Filter {
   public abstract T buildMarvelServelt();
 
   public abstract void doCustomFilter(ServletRequest request, ServletResponse response,
-    FilterChain arg2) throws IOException, ServletException;
+    FilterChain filterChain) throws IOException, ServletException;
 
   @Override
   public void destroy() {
@@ -35,15 +35,15 @@ public abstract class MarvelFilter<T extends MarvelServlet> implements Filter {
   }
 
   @Override
-  public final void doFilter(ServletRequest request, ServletResponse response, FilterChain arg2)
+  public final void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
     throws IOException, ServletException {
 
     MarvelServlet marvelServelt = buildMarvelServelt();
     marvelServelt.setRequest((HttpServletRequest) request);
     marvelServelt.setResponse((HttpServletResponse) response);
     filterThreadLocal.set(marvelServelt);
-    doCustomFilter(request, response, arg2);
-    arg2.doFilter(request, response);
+    doCustomFilter(request, response, filterChain);
+    filterChain.doFilter(request, response);
   }
 
   @Override

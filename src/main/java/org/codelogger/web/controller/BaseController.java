@@ -16,6 +16,11 @@ public class BaseController {
     return MarvelFilter.getMarvelServelt();
   }
 
+  protected void addAttribute(final String key, final Object value) {
+
+    getMarvelServlet().getRequest().setAttribute(key, value);
+  }
+
   protected String forward(final String target) {
 
     return format("forward:%s", target);

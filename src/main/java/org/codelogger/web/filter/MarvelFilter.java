@@ -17,14 +17,14 @@ public abstract class MarvelFilter<T extends MarvelServlet> implements Filter {
 
   private static ThreadLocal<MarvelServlet> filterThreadLocal = new ThreadLocal<MarvelServlet>();
 
-  public static <T extends MarvelServlet> T getMarvelServelt() {
+  public static <T extends MarvelServlet> T getMarvelServlet() {
 
     @SuppressWarnings("unchecked")
     T marvelServlet = (T) filterThreadLocal.get();
     return marvelServlet;
   }
 
-  public abstract T buildMarvelServelt();
+  public abstract T buildMarvelServlet();
 
   public abstract void doCustomFilter(ServletRequest request, ServletResponse response,
     FilterChain filterChain) throws IOException, ServletException;
@@ -35,19 +35,19 @@ public abstract class MarvelFilter<T extends MarvelServlet> implements Filter {
   }
 
   @Override
-  public final void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
-    throws IOException, ServletException {
+  public final void doFilter(final ServletRequest request, final ServletResponse response,
+    final FilterChain filterChain) throws IOException, ServletException {
 
-    MarvelServlet marvelServelt = buildMarvelServelt();
-    marvelServelt.setRequest((HttpServletRequest) request);
-    marvelServelt.setResponse((HttpServletResponse) response);
-    filterThreadLocal.set(marvelServelt);
+    MarvelServlet marvelServlet = buildMarvelServlet();
+    marvelServlet.setRequest((HttpServletRequest) request);
+    marvelServlet.setResponse((HttpServletResponse) response);
+    filterThreadLocal.set(marvelServlet);
     doCustomFilter(request, response, filterChain);
     filterChain.doFilter(request, response);
   }
 
   @Override
-  public void init(FilterConfig arg0) throws ServletException {
+  public void init(final FilterConfig arg0) throws ServletException {
 
   }
 

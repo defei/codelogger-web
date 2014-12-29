@@ -13,7 +13,7 @@ public class BaseController {
 
   public static <T extends MarvelServlet> T getMarvelServlet() {
 
-    return MarvelFilter.getMarvelServelt();
+    return MarvelFilter.getMarvelServlet();
   }
 
   protected void addAttribute(final String key, final Object value) {

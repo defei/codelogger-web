@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -26,29 +25,20 @@ public abstract class MarvelFilter<T extends MarvelServlet> implements Filter {
 
   public abstract T buildMarvelServlet();
 
-  public abstract void doCustomFilter(ServletRequest request, ServletResponse response,
+  public abstract void doFilter(HttpServletRequest request, HttpServletResponse response,
     FilterChain filterChain) throws IOException, ServletException;
-
-  @Override
-  public void destroy() {
-
-  }
 
   @Override
   public final void doFilter(final ServletRequest request, final ServletResponse response,
     final FilterChain filterChain) throws IOException, ServletException {
 
     MarvelServlet marvelServlet = buildMarvelServlet();
-    marvelServlet.setRequest((HttpServletRequest) request);
-    marvelServlet.setResponse((HttpServletResponse) response);
+    HttpServletRequest httpServletRequest = (HttpServletRequest) request;
+    HttpServletResponse httpServletResponse = (HttpServletResponse) response;
+    marvelServlet.setRequest(httpServletRequest);
+    marvelServlet.setResponse(httpServletResponse);
     filterThreadLocal.set(marvelServlet);
-    doCustomFilter(request, response, filterChain);
-    filterChain.doFilter(request, response);
-  }
-
-  @Override
-  public void init(final FilterConfig arg0) throws ServletException {
-
+    doFilter(httpServletRequest, httpServletResponse, filterChain);
   }
 
 }

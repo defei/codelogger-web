@@ -2,11 +2,11 @@ package org.codelogger.web.controller;
 
 import static java.lang.Boolean.TRUE;
 
-import org.codelogger.web.utils.HttpServletHelper;
-
 import javax.servlet.http.HttpServletRequest;
 
-public abstract class AntiStealController extends BaseController {
+import org.codelogger.web.utils.HttpServletHelper;
+
+public abstract class AntiStealController {
 
   private static final String VALID_SESSION_KEY = "f_s_k";
 
@@ -19,8 +19,8 @@ public abstract class AntiStealController extends BaseController {
 
   protected boolean isValidVisit(final HttpServletRequest request) {
 
-    Boolean isValidSession =
-        HttpServletHelper.getBooleanValueFromSession(request, VALID_SESSION_KEY);
+    Boolean isValidSession = HttpServletHelper.getBooleanValueFromSession(request,
+      VALID_SESSION_KEY);
     if (isValidSession) {
       return true;
     } else {

@@ -15,7 +15,8 @@ public class ContextLoaderListener extends WebContextLoader implements ServletCo
 
     logger
       .debug("execut org.codelogger.web.context.ContextLoaderListener.contextInitialized(ServletContextEvent)");
-    initWebApplicationContext(sce.getServletContext());
+    WebApplicationContext webApplicationContext = initWebApplicationContext(sce.getServletContext());
+    sce.getServletContext().setAttribute("webApplicationContext", webApplicationContext);
   }
 
   @Override

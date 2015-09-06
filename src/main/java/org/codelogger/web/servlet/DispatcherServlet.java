@@ -1,10 +1,11 @@
 package org.codelogger.web.servlet;
 
+import static org.codelogger.utils.StringUtils.isBlank;
 import static org.codelogger.utils.StringUtils.isNotBlank;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Set;
@@ -19,6 +20,7 @@ import org.codelogger.utils.ArrayUtils;
 import org.codelogger.utils.StringUtils;
 import org.codelogger.utils.beans.StorageComponent;
 import org.codelogger.web.context.WebApplicationContext;
+import org.codelogger.web.context.stereotype.Param;
 import org.codelogger.web.context.stereotype.RequestMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,14 +51,25 @@ public class DispatcherServlet extends HttpServlet {
             Object[] params = new Object[parameterTypes.length];
             for (int i = 0; i < parameterTypes.length; i++) {
               Type parameterType = parameterTypes[i];
-              Parameter parameter = method.getParameters()[0];
-              logger.info("param typeName: {}", parameter.getName());
               if (parameterType instanceof HttpServletRequest) {
                 params[i] = req;
-              } else if (parameterType instanceof HttpServletRequest) {
+              } else if (parameterType instanceof HttpServletResponse) {
                 params[i] = resp;
               } else {
-                params[i] = req.getParameter(parameterType.getTypeName());
+                Annotation[] annotations = method.getParameterAnnotations()[i];
+                for (Annotation annotation : annotations) {
+                  if (annotation instanceof Param) {
+                    Param param = (Param) annotation;
+                    String parameterValue = req.getParameter(param.value());
+                    if (param.required() && parameterValue == null && isBlank(param.defaultValue())) {
+                      resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
+                        "Missing Param:" + param.value());
+                      return;
+                    } else {
+                      params[i] = parameterValue == null ? param.defaultValue() : parameterValue;
+                    }
+                  }
+                }
               }
             }
             method.invoke(controller, params);

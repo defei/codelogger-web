@@ -13,9 +13,9 @@ import javax.servlet.jsp.tagext.TagSupport;
 import org.codelogger.utils.ArrayUtils;
 import org.codelogger.utils.ClassUtils;
 
-public class CheckboxTag extends TagSupport {
+public class RadioTag extends TagSupport {
 
-  private static final long serialVersionUID = -2123253186591293149L;
+  private static final long serialVersionUID = 6351629965825001300L;
 
   private String name;
 
@@ -73,10 +73,10 @@ public class CheckboxTag extends TagSupport {
         }
       }
       if (elementContainsTarget) {
-        out.print(format("<input name=\"%s\" value=\"%s\" type=\"checkbox\" checked=\"checked\" >",
+        out.print(format("<input name=\"%s\" value=\"%s\" type=\"radio\" checked=\"checked\" >",
           name, value));
       } else {
-        out.print(format("<input name=\"%s\" value=\"%s\" type=\"checkbox\" >", name, value));
+        out.print(format("<input name=\"%s\" value=\"%s\" type=\"radio\" >", name, value));
       }
       return SKIP_BODY;
     } catch (IOException e) {

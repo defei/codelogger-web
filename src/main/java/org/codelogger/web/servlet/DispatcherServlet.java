@@ -1,5 +1,6 @@
 package org.codelogger.web.servlet;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.codelogger.utils.StringUtils.isBlank;
 import static org.codelogger.utils.StringUtils.isNotBlank;
 
@@ -7,7 +8,9 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.servlet.ServletContext;
@@ -22,6 +25,7 @@ import org.codelogger.utils.ValueUtils;
 import org.codelogger.utils.beans.StorageComponent;
 import org.codelogger.web.context.WebApplicationContext;
 import org.codelogger.web.context.stereotype.Param;
+import org.codelogger.web.context.stereotype.PathVariable;
 import org.codelogger.web.context.stereotype.RequestMapping;
 import org.codelogger.web.context.stereotype.RequestMethod;
 import org.slf4j.Logger;
@@ -33,14 +37,14 @@ public class DispatcherServlet extends HttpServlet {
   protected void doGet(final HttpServletRequest req, final HttpServletResponse resp)
     throws ServletException, IOException {
 
-    MappingToMethod currentMappingToMethod = findMappingMethodByRequestURI(req);
+    MethodAndPathVariables currentMappingToMethod = findMappingMethodByRequestURI(req);
     Method method = currentMappingToMethod.getMethod();
     if (isMethodAllowed(method, RequestMethod.GET)) {
       if (currentMappingToMethod != null && method != null) {
-        Object controller = currentMappingToMethod.getController();
-        Object data = invokeMethod(req, resp, method, controller);
+        Object data = invokeMethod(req, resp, currentMappingToMethod);
         if (data != null) {
-          req.getRequestDispatcher(data.toString()).forward(req, resp);
+          String targetJsp = fixedTargetJsp(data.toString());
+          req.getRequestDispatcher(targetJsp).forward(req, resp);
         }
       }
     } else {
@@ -49,31 +53,51 @@ public class DispatcherServlet extends HttpServlet {
     }
   }
 
-  private Boolean isMethodAllowed(final Method method, final RequestMethod requestMethod) {
+  private String fixedTargetJsp(final String targetJsp) {
 
-    RequestMapping requestMappingOfMethod = method.getAnnotation(RequestMapping.class);
-    return requestMappingOfMethod.method().length == 0
-      || ArrayUtils.contains(requestMappingOfMethod.method(), requestMethod);
+    String fixedTargetJsp = targetJsp.startsWith("/") ? targetJsp : "/" + targetJsp;
+    fixedTargetJsp = fixedTargetJsp.endsWith(".jsp") ? fixedTargetJsp : fixedTargetJsp + ".jsp";
+    return fixedTargetJsp;
   }
 
-  private MappingToMethod findMappingMethodByRequestURI(final HttpServletRequest req) {
+  private Boolean isMethodAllowed(final Method method, final RequestMethod requestMethod) {
+
+    RequestMethod[] requestMethods = methodToRequestMethods.get(method);
+    return requestMethods.length == 0 || ArrayUtils.contains(requestMethods, requestMethod);
+  }
+
+  private MethodAndPathVariables findMappingMethodByRequestURI(final HttpServletRequest req) {
 
     logger.info("Find method for uri:'{}'", req.getRequestURI());
     List<String> mappings = StringUtils.getStringsByRegex(req.getRequestURI(), MAPPING_DELIMITER);
-    MappingToMethod currentMappingToMethod = mappingToMethod;
+    List<String> pathVariables = new ArrayList<String>(mappings.size());
+    MappingToMethod targetMappingToMethod = mappingToMethod;
     for (String mapping : mappings) {
-      currentMappingToMethod = currentMappingToMethod.get(mapping);
+      if (targetMappingToMethod == null) {
+        break;
+      }
+      MappingToMethod currentMappingToMethod = targetMappingToMethod.get(mapping);
+      if (!currentMappingToMethod.hasMore() && currentMappingToMethod.getMethod() == null) {
+        currentMappingToMethod = targetMappingToMethod.get("/*");
+        pathVariables.add(mapping.substring(1));
+      }
+      targetMappingToMethod = currentMappingToMethod;
     }
-    return currentMappingToMethod;
+    return new MethodAndPathVariables(targetMappingToMethod.getMethod(),
+      targetMappingToMethod.getController(), pathVariables);
   }
 
   @SuppressWarnings({ "unchecked", "rawtypes" })
   private Object invokeMethod(final HttpServletRequest req, final HttpServletResponse resp,
-    final Method method, final Object controller) {
+    final MethodAndPathVariables methodAndPathVariables) {
 
+    Method method = methodAndPathVariables.getMethod();
+    Object controller = methodAndPathVariables.getController();
+    List<String> pathVariables = methodAndPathVariables.getPathVariables();
     try {
       Type[] parameterTypes = method.getGenericParameterTypes();
       if (ArrayUtils.isNotEmpty(parameterTypes)) {
+        int pathVariableIndex = 0;
         Object[] params = new Object[parameterTypes.length];
         for (int i = 0; i < parameterTypes.length; i++) {
           Type parameterType = parameterTypes[i];
@@ -84,6 +108,7 @@ public class DispatcherServlet extends HttpServlet {
           } else {
             Annotation[] annotations = method.getParameterAnnotations()[i];
             for (Annotation annotation : annotations) {
+              String value = null;
               if (annotation instanceof Param) {
                 Param param = (Param) annotation;
                 String parameterValue = req.getParameter(param.value());
@@ -92,29 +117,32 @@ public class DispatcherServlet extends HttpServlet {
                     "Missing Param:" + param.value());
                   return null;
                 } else {
-                  String value = parameterValue == null ? param.defaultValue() : parameterValue;
-                  if (parameterType.equals(String.class)) {
-                    params[i] = value;
-                  } else if (parameterType.equals(Integer.class) || parameterType.equals(int.class)) {
-                    params[i] = Integer.valueOf(value);
-                  } else if (parameterType.equals(Long.class) || parameterType.equals(long.class)) {
-                    params[i] = Long.valueOf(value);
-                  } else if (parameterType.equals(Boolean.class)
-                    || parameterType.equals(boolean.class)) {
-                    params[i] = Boolean.valueOf(value);
-                  } else if (parameterType.equals(Double.class)
-                    || parameterType.equals(double.class)) {
-                    params[i] = Integer.valueOf(value);
-                  } else if (parameterType.equals(Float.class) || parameterType.equals(float.class)) {
-                    params[i] = Integer.valueOf(value);
-                  } else if (parameterType.equals(Byte.class) || parameterType.equals(byte.class)) {
-                    params[i] = Byte.valueOf(value);
-                  } else if (parameterType.equals(Character.class)
-                    || parameterType.equals(char.class)) {
-                    params[i] = value.charAt(0);
-                  } else if (((Class<?>) parameterType).isEnum()) {
-                    params[i] = ValueUtils.getEnumInstance((Class) parameterType, value);
-                  }
+                  value = parameterValue == null ? param.defaultValue() : parameterValue;
+                }
+              } else if (annotation instanceof PathVariable) {
+                value = pathVariables.get(pathVariableIndex++);
+              }
+              if (value != null) {
+                if (parameterType.equals(String.class)) {
+                  params[i] = value;
+                } else if (parameterType.equals(Integer.class) || parameterType.equals(int.class)) {
+                  params[i] = Integer.valueOf(value);
+                } else if (parameterType.equals(Long.class) || parameterType.equals(long.class)) {
+                  params[i] = Long.valueOf(value);
+                } else if (parameterType.equals(Boolean.class)
+                  || parameterType.equals(boolean.class)) {
+                  params[i] = Boolean.valueOf(value);
+                } else if (parameterType.equals(Double.class) || parameterType.equals(double.class)) {
+                  params[i] = Integer.valueOf(value);
+                } else if (parameterType.equals(Float.class) || parameterType.equals(float.class)) {
+                  params[i] = Integer.valueOf(value);
+                } else if (parameterType.equals(Byte.class) || parameterType.equals(byte.class)) {
+                  params[i] = Byte.valueOf(value);
+                } else if (parameterType.equals(Character.class)
+                  || parameterType.equals(char.class)) {
+                  params[i] = value.charAt(0);
+                } else if (((Class<?>) parameterType).isEnum()) {
+                  params[i] = ValueUtils.getEnumInstance((Class) parameterType, value);
                 }
               }
             }
@@ -154,9 +182,10 @@ public class DispatcherServlet extends HttpServlet {
         if (isNotBlank(requestMappingOfClass.value())) {
           String[] mappings = requestMappingOfClass.value().split("/");
           for (String mapping : mappings) {
-            String fixedMapping = "/" + mapping;
+            String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*" : "/"
+              + mapping;
             classMappingToClass = classMappingToClass.get(fixedMapping);
-            fullMappingOfClass += fixedMapping;
+            fullMappingOfClass += "/" + mapping;
           }
         }
 
@@ -169,14 +198,16 @@ public class DispatcherServlet extends HttpServlet {
             if (isNotBlank(requestMappingOfMethod.value())) {
               String[] mappings = requestMappingOfMethod.value().split("/");
               for (String mapping : mappings) {
-                String fixedMapping = "/" + mapping;
+                String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*" : "/"
+                  + mapping;
                 methodMappingToMethod = methodMappingToMethod.get(fixedMapping);
-                fullMappingOfMethod += fixedMapping;
+                fullMappingOfMethod += "/" + mapping;
               }
             }
             logger.info("set mapping method {} to mapping:'{}'", method, fullMappingOfMethod);
             methodMappingToMethod.setController(controller);
             methodMappingToMethod.setMethod(method);
+            methodToRequestMethods.put(method, method.getAnnotation(RequestMapping.class).method());
           }
         }
       }
@@ -200,6 +231,11 @@ public class DispatcherServlet extends HttpServlet {
       return mappingToMethod;
     }
 
+    public Boolean hasMore() {
+
+      return size() > 0;
+    }
+
     public void setController(final Object controller) {
 
       this.controller = controller;
@@ -221,6 +257,42 @@ public class DispatcherServlet extends HttpServlet {
     }
 
   }
+
+  private static class MethodAndPathVariables {
+
+    private Method method;
+
+    private Object controller;
+
+    List<String> pathVariables;
+
+    public Object getController() {
+
+      return controller;
+    }
+
+    public MethodAndPathVariables(final Method method, final Object controller,
+      final List<String> pathVariables) {
+
+      super();
+      this.method = method;
+      this.controller = controller;
+      this.pathVariables = pathVariables;
+    }
+
+    public Method getMethod() {
+
+      return method;
+    }
+
+    public List<String> getPathVariables() {
+
+      return pathVariables;
+    }
+
+  }
+
+  private Map<Method, RequestMethod[]> methodToRequestMethods = newHashMap();
 
   private MappingToMethod mappingToMethod = new MappingToMethod();
 

@@ -19,6 +19,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.http.entity.ContentType;
+import org.codelogger.core.utils.JsonUtils;
 import org.codelogger.utils.ArrayUtils;
 import org.codelogger.utils.StringUtils;
 import org.codelogger.utils.ValueUtils;
@@ -28,6 +30,7 @@ import org.codelogger.web.context.stereotype.Param;
 import org.codelogger.web.context.stereotype.PathVariable;
 import org.codelogger.web.context.stereotype.RequestMapping;
 import org.codelogger.web.context.stereotype.RequestMethod;
+import org.codelogger.web.context.stereotype.ResponseBody;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,24 +40,84 @@ public class DispatcherServlet extends HttpServlet {
   protected void doGet(final HttpServletRequest req, final HttpServletResponse resp)
     throws ServletException, IOException {
 
+    dispatch(req, resp, RequestMethod.GET);
+  }
+
+  @Override
+  protected void doHead(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.HEAD);
+  }
+
+  @Override
+  protected void doPost(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.POST);
+  }
+
+  @Override
+  protected void doPut(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.PUT);
+  }
+
+  @Override
+  protected void doDelete(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.DELETE);
+  }
+
+  @Override
+  protected void doOptions(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.OPTIONS);
+  }
+
+  @Override
+  protected void doTrace(final HttpServletRequest req, final HttpServletResponse resp)
+    throws ServletException, IOException {
+
+    dispatch(req, resp, RequestMethod.TRACE);
+  }
+
+  private void dispatch(final HttpServletRequest req, final HttpServletResponse resp,
+    final RequestMethod requestMethod) throws ServletException, IOException {
+
     MethodAndPathVariables currentMappingToMethod = findMappingMethodByRequestURI(req);
     Method method = currentMappingToMethod.getMethod();
-    if (isMethodAllowed(method, RequestMethod.GET)) {
-      if (currentMappingToMethod != null && method != null) {
-        Object data = invokeMethod(req, resp, currentMappingToMethod);
-        if (data != null) {
-          String targetJsp = fixedTargetJsp(data.toString());
-          req.getRequestDispatcher(targetJsp).forward(req, resp);
+    if (method != null) {
+      if (isMethodAllowed(method, requestMethod)) {
+        if (currentMappingToMethod != null && method != null) {
+          Object data = invokeMethod(req, resp, currentMappingToMethod);
+          if (data != null) {
+            Object responseBody = methodToResponseBody.get(method);
+            if (responseBody == null) {
+              String targetJsp = fixedTargetJsp(data.toString());
+              req.getRequestDispatcher(targetJsp).forward(req, resp);
+            } else {
+              String json = JsonUtils.toJson(data);
+              resp.setContentType(ContentType.APPLICATION_JSON.getMimeType());
+              resp.setCharacterEncoding("utf-8");
+              resp.getWriter().write(json);
+            }
+          }
         }
+      } else {
+        resp.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED, requestMethod
+          + " method not allowed");
+        return;
       }
-    } else {
-      resp.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED, "GET method not allowed");
-      return;
     }
   }
 
   private String fixedTargetJsp(final String targetJsp) {
 
+    System.out.println(getServletContext().getAttribute("view-prefix"));
     String fixedTargetJsp = targetJsp.startsWith("/") ? targetJsp : "/" + targetJsp;
     fixedTargetJsp = fixedTargetJsp.endsWith(".jsp") ? fixedTargetJsp : fixedTargetJsp + ".jsp";
     return fixedTargetJsp;
@@ -178,6 +241,7 @@ public class DispatcherServlet extends HttpServlet {
         Class<? extends Object> controllerClass = controller.getClass();
         RequestMapping requestMappingOfClass = controllerClass.getAnnotation(RequestMapping.class);
         MappingToMethod classMappingToClass = contextMappingToMethod;
+        ResponseBody responseBodyOfClass = controllerClass.getAnnotation(ResponseBody.class);
         String fullMappingOfClass = "";
         if (isNotBlank(requestMappingOfClass.value())) {
           String[] mappings = requestMappingOfClass.value().split("/");
@@ -208,6 +272,9 @@ public class DispatcherServlet extends HttpServlet {
             methodMappingToMethod.setController(controller);
             methodMappingToMethod.setMethod(method);
             methodToRequestMethods.put(method, method.getAnnotation(RequestMapping.class).method());
+            ResponseBody responseBodyOfMethod = method.getAnnotation(ResponseBody.class);
+            methodToResponseBody.put(method, responseBodyOfMethod == null ? responseBodyOfClass
+              : requestMappingOfMethod);
           }
         }
       }
@@ -291,6 +358,8 @@ public class DispatcherServlet extends HttpServlet {
     }
 
   }
+
+  private Map<Method, Object> methodToResponseBody = newHashMap();
 
   private Map<Method, RequestMethod[]> methodToRequestMethods = newHashMap();
 

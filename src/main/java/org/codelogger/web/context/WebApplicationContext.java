@@ -3,6 +3,7 @@ package org.codelogger.web.context;
 import static com.google.common.collect.Sets.newHashSet;
 
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,20 +20,21 @@ public class WebApplicationContext extends ApplicationContext {
 
   public WebApplicationContext(final ApplicationContext applicationContext) {
 
-    super(applicationContext);
+    super(applicationContext, applicationContext.getConfigurations());
     updateControllers();
   }
 
-  protected WebApplicationContext(final ConcurrentHashMap<Class<?>, Object> typeToBean) {
+  protected WebApplicationContext(final ConcurrentHashMap<Class<?>, Object> typeToBean,
+    final Properties configurations) {
 
-    super(typeToBean);
+    super(typeToBean, configurations);
     updateControllers();
   }
 
   protected WebApplicationContext(final ApplicationContext applicationContext,
-    final ConcurrentHashMap<Class<?>, Object> typeToBean) {
+    final ConcurrentHashMap<Class<?>, Object> typeToBean, final Properties configurations) {
 
-    super(applicationContext, typeToBean);
+    super(applicationContext, typeToBean, configurations);
     updateControllers();
   }
 

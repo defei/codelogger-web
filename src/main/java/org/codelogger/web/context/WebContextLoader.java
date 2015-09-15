@@ -25,8 +25,12 @@ public class WebContextLoader extends ApplicationContextLoader {
       Dao.class, Service.class, Controller.class);
     super.setComponentScanner(componentScanner);
     ApplicationContext initApplicationContext = super.initApplicationContext(contextConfigLocation);
-    return new WebApplicationContext(initApplicationContext);
+    WebApplicationContext webApplicationContext = new WebApplicationContext(initApplicationContext);
+    servletContext.setAttribute(WEB_APPLICATION_CONTEXT, webApplicationContext);
+    return webApplicationContext;
   }
+
+  private static final String WEB_APPLICATION_CONTEXT = "webApplicationContext";
 
   private static final String CONTEXT_CONFIG_LOCATION = "contextConfigLocation";
 }

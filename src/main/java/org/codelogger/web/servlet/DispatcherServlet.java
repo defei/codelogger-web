@@ -3,6 +3,7 @@ package org.codelogger.web.servlet;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.codelogger.utils.StringUtils.isBlank;
 import static org.codelogger.utils.StringUtils.isNotBlank;
+import static org.codelogger.utils.lang.CharacterEncoding.UTF_8;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -102,7 +103,7 @@ public class DispatcherServlet extends HttpServlet {
             } else {
               String json = JsonUtils.toJson(data);
               resp.setContentType(ContentType.APPLICATION_JSON.getMimeType());
-              resp.setCharacterEncoding("utf-8");
+              resp.setCharacterEncoding(UTF_8.getCharsetName());
               resp.getWriter().write(json);
             }
           }
@@ -117,7 +118,6 @@ public class DispatcherServlet extends HttpServlet {
 
   private String fixedTargetJsp(final String targetJsp) {
 
-    System.out.println(getServletContext().getAttribute("view-prefix"));
     String fixedTargetJsp = targetJsp.startsWith("/") ? targetJsp : "/" + targetJsp;
     fixedTargetJsp = fixedTargetJsp.endsWith(".jsp") ? fixedTargetJsp : fixedTargetJsp + ".jsp";
     return fixedTargetJsp;

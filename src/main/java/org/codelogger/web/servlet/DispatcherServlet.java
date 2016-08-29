@@ -5,11 +5,14 @@ import static org.codelogger.utils.StringUtils.isBlank;
 import static org.codelogger.utils.StringUtils.isNotBlank;
 import static org.codelogger.utils.lang.CharacterEncoding.UTF_8;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,14 +24,19 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.http.entity.ContentType;
+import org.codelogger.core.bean.tuple.TwoTuple;
 import org.codelogger.core.utils.JsonUtils;
 import org.codelogger.utils.ArrayUtils;
+import org.codelogger.utils.CollectionUtils;
+import org.codelogger.utils.IOUtils;
+import org.codelogger.utils.PathUtils;
 import org.codelogger.utils.StringUtils;
 import org.codelogger.utils.ValueUtils;
 import org.codelogger.utils.beans.StorageComponent;
 import org.codelogger.web.context.WebApplicationContext;
 import org.codelogger.web.context.stereotype.Param;
 import org.codelogger.web.context.stereotype.PathVariable;
+import org.codelogger.web.context.stereotype.RequestAttribute;
 import org.codelogger.web.context.stereotype.RequestMapping;
 import org.codelogger.web.context.stereotype.RequestMethod;
 import org.codelogger.web.context.stereotype.ResponseBody;
@@ -89,6 +97,7 @@ public class DispatcherServlet extends HttpServlet {
   private void dispatch(final HttpServletRequest req, final HttpServletResponse resp,
     final RequestMethod requestMethod) throws ServletException, IOException {
 
+    req.setAttribute(isDispatchedKey, true);
     MethodAndPathVariables currentMappingToMethod = findMappingMethodByRequestURI(req);
     Method method = currentMappingToMethod.getMethod();
     if (method != null) {
@@ -113,13 +122,46 @@ public class DispatcherServlet extends HttpServlet {
           + " method not allowed");
         return;
       }
+    } else {
+      String fixedRequestURI = req.getRequestURI().replaceFirst(req.getContextPath(), "");
+      Boolean matchedStaticResources = false;
+      for (String viewResource : viewResources) {
+        if (fixedRequestURI.startsWith(viewResource)) {
+          matchedStaticResources = true;
+          break;
+        }
+      }
+      if (matchedStaticResources) {
+        FileInputStream sourceInputStream = null;
+        try {
+          sourceInputStream = new FileInputStream(getFixedResourcePath(fixedRequestURI));
+          IOUtils.write(sourceInputStream, resp.getOutputStream());
+        } catch (FileNotFoundException e) {
+          resp.sendError(HttpServletResponse.SC_NOT_FOUND, fixedRequestURI + " NOT FOUND!");
+        } finally {
+          if (sourceInputStream != null) {
+            try {
+              sourceInputStream.close();
+            } catch (Exception e) {
+            }
+          }
+        }
+      } else {
+        resp.sendError(HttpServletResponse.SC_NOT_FOUND, fixedRequestURI + " NOT FOUND!");
+      }
     }
+  }
+
+  private String getFixedResourcePath(final String fileRelativePathOfWebRoot) {
+
+    return fileRelativePathOfWebRoot.startsWith("/") ? webRootPath
+      + fileRelativePathOfWebRoot.substring(1) : webRootPath + fileRelativePathOfWebRoot;
   }
 
   private String fixedTargetJsp(final String targetJsp) {
 
-    String fixedTargetJsp = targetJsp.startsWith("/") ? targetJsp : "/" + targetJsp;
-    fixedTargetJsp = fixedTargetJsp.endsWith(".jsp") ? fixedTargetJsp : fixedTargetJsp + ".jsp";
+    String fixedTargetJsp = targetJsp.startsWith("/") ? targetJsp : viewPrefix + targetJsp;
+    fixedTargetJsp = fixedTargetJsp.endsWith(".jsp") ? fixedTargetJsp : fixedTargetJsp + viewSuffix;
     return fixedTargetJsp;
   }
 
@@ -156,6 +198,18 @@ public class DispatcherServlet extends HttpServlet {
 
     Method method = methodAndPathVariables.getMethod();
     Object controller = methodAndPathVariables.getController();
+    if (!controllerClassToRequestAttribute.isEmptyMethodAndAttributeKeyPairs(controller.getClass())) {
+      List<TwoTuple<Method, String>> methodAndAttributeKeyPaires = controllerClassToRequestAttribute
+        .get(controller.getClass());
+      for (TwoTuple<Method, String> methodAndAttributeKeyPaire : methodAndAttributeKeyPaires) {
+        try {
+          req.setAttribute(methodAndAttributeKeyPaire.second,
+            methodAndAttributeKeyPaire.first.invoke(controller));
+        } catch (Exception e) {
+          logger.warn("Set request attribute {} failed.", methodAndAttributeKeyPaire.second, e);
+        }
+      }
+    };
     List<String> pathVariables = methodAndPathVariables.getPathVariables();
     try {
       Type[] parameterTypes = method.getGenericParameterTypes();
@@ -236,20 +290,31 @@ public class DispatcherServlet extends HttpServlet {
     webApplicationContext = (WebApplicationContext) servletContext
       .getAttribute("webApplicationContext");
     if (webApplicationContext != null) {
+      viewPrefix = webApplicationContext.getConfigurations().getProperty("view-prefix");
+      viewSuffix = webApplicationContext.getConfigurations().getProperty("view-suffix");
+      String viewResourcesString = webApplicationContext.getConfigurations().getProperty(
+        "view-resources");
+      viewResources = viewResourcesString == null ? null : viewResourcesString.split("");
       Set<Object> controllers = webApplicationContext.getControllers();
       for (Object controller : controllers) {
         Class<? extends Object> controllerClass = controller.getClass();
-        RequestMapping requestMappingOfClass = controllerClass.getAnnotation(RequestMapping.class);
+        RequestMapping requestMappingsOfClass = controllerClass.getAnnotation(RequestMapping.class);
+        String fullMappingOfClass = "";
         MappingToMethod classMappingToClass = contextMappingToMethod;
         ResponseBody responseBodyOfClass = controllerClass.getAnnotation(ResponseBody.class);
-        String fullMappingOfClass = "";
-        if (isNotBlank(requestMappingOfClass.value())) {
-          String[] mappings = requestMappingOfClass.value().split("/");
-          for (String mapping : mappings) {
-            String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*" : "/"
-              + mapping;
-            classMappingToClass = classMappingToClass.get(fixedMapping);
-            fullMappingOfClass += "/" + mapping;
+        if (requestMappingsOfClass != null) {
+          if (ArrayUtils.isNotEmpty(requestMappingsOfClass.value())) {
+            for (String requestMappingOfClass : requestMappingsOfClass.value()) {
+              if (isNotBlank(requestMappingOfClass)) {
+                String[] mappings = requestMappingOfClass.split("/");
+                for (String mapping : mappings) {
+                  String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*"
+                    : "/" + mapping;
+                  classMappingToClass = classMappingToClass.get(fixedMapping);
+                  fullMappingOfClass += "/" + mapping;
+                }
+              }
+            }
           }
         }
 
@@ -257,15 +322,17 @@ public class DispatcherServlet extends HttpServlet {
         for (Method method : declaredMethods) {
           String fullMappingOfMethod = fullMappingOfClass;
           MappingToMethod methodMappingToMethod = classMappingToClass;
-          RequestMapping requestMappingOfMethod = method.getAnnotation(RequestMapping.class);
-          if (requestMappingOfMethod != null) {
-            if (isNotBlank(requestMappingOfMethod.value())) {
-              String[] mappings = requestMappingOfMethod.value().split("/");
-              for (String mapping : mappings) {
-                String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*" : "/"
-                  + mapping;
-                methodMappingToMethod = methodMappingToMethod.get(fixedMapping);
-                fullMappingOfMethod += "/" + mapping;
+          RequestMapping requestMappingsOfMethod = method.getAnnotation(RequestMapping.class);
+          if (requestMappingsOfMethod != null) {
+            if (ArrayUtils.isNotEmpty(requestMappingsOfMethod.value())) {
+              for (String requestMappingOfMethod : requestMappingsOfMethod.value()) {
+                String[] mappings = requestMappingOfMethod.split("/");
+                for (String mapping : mappings) {
+                  String fixedMapping = mapping.startsWith("{") && mapping.endsWith("}") ? "/*"
+                    : "/" + mapping;
+                  methodMappingToMethod = methodMappingToMethod.get(fixedMapping);
+                  fullMappingOfMethod += "/" + mapping;
+                }
               }
             }
             logger.info("set mapping method {} to mapping:'{}'", method, fullMappingOfMethod);
@@ -274,7 +341,13 @@ public class DispatcherServlet extends HttpServlet {
             methodToRequestMethods.put(method, method.getAnnotation(RequestMapping.class).method());
             ResponseBody responseBodyOfMethod = method.getAnnotation(ResponseBody.class);
             methodToResponseBody.put(method, responseBodyOfMethod == null ? responseBodyOfClass
-              : requestMappingOfMethod);
+              : responseBodyOfMethod);
+          }
+          RequestAttribute requestAttribute = method.getAnnotation(RequestAttribute.class);
+          if (requestAttribute != null) {
+            List<TwoTuple<Method, String>> methodAndAttributeKeyPair = controllerClassToRequestAttribute
+              .get(controllerClass);
+            methodAndAttributeKeyPair.add(TwoTuple.newTwoTuple(method, requestAttribute.value()));
           }
         }
       }
@@ -359,13 +432,50 @@ public class DispatcherServlet extends HttpServlet {
 
   }
 
+  private static class ControllerClassToRequestAttribute extends
+    HashMap<Class<?>, List<TwoTuple<Method, String>>> {
+
+    private static final long serialVersionUID = 1210375561646014915L;
+
+    @Override
+    public List<TwoTuple<Method, String>> get(final Object key) {
+
+      List<TwoTuple<Method, String>> methodAndAttributeKeyPairs = super.get(key);
+      if (methodAndAttributeKeyPairs == null) {
+        synchronized (ControllerClassToRequestAttribute.class) {
+          methodAndAttributeKeyPairs = new ArrayList<TwoTuple<Method, String>>();
+          put((Class<?>) key, methodAndAttributeKeyPairs);
+        }
+      }
+      return methodAndAttributeKeyPairs;
+    }
+
+    public Boolean isEmptyMethodAndAttributeKeyPairs(final Class<?> key) {
+
+      return CollectionUtils.isEmpty(super.get(key));
+    }
+
+  }
+
+  private String webRootPath = PathUtils.getWebProjectPath(this);
+
+  private String viewPrefix;
+
+  private String viewSuffix;
+
+  private String[] viewResources;
+
   private Map<Method, Object> methodToResponseBody = newHashMap();
 
   private Map<Method, RequestMethod[]> methodToRequestMethods = newHashMap();
 
   private MappingToMethod mappingToMethod = new MappingToMethod();
 
+  private ControllerClassToRequestAttribute controllerClassToRequestAttribute = new ControllerClassToRequestAttribute();
+
   private WebApplicationContext webApplicationContext;
+
+  private static final String isDispatchedKey = "_CL_DS_D_";
 
   private static final String MAPPING_DELIMITER = "/?[^/]+";
 

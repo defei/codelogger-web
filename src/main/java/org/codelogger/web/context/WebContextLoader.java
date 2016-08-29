@@ -34,10 +34,11 @@ public class WebContextLoader extends ApplicationContextLoader {
   protected ConcurrentHashMap<Class<? extends Annotation>, DefaultConstructFactory> getSupportComponentTypeToConstructFactory() {
 
     logger.info("Get support component type construct factories.");
-    ConcurrentHashMap<Class<? extends Annotation>, DefaultConstructFactory> componentTypeToConstructFactory = new ConcurrentHashMap<Class<? extends Annotation>, DefaultConstructFactory>();
-    componentTypeToConstructFactory.put(Controller.class, new DefaultConstructFactory(
+    ConcurrentHashMap<Class<? extends Annotation>, DefaultConstructFactory> supportComponentTypeToConstructFactory = super
+      .getSupportComponentTypeToConstructFactory();
+    supportComponentTypeToConstructFactory.put(Controller.class, new DefaultConstructFactory(
       PropertiesLoader.loadProperties(contextConfigLocation)));
-    return componentTypeToConstructFactory;
+    return supportComponentTypeToConstructFactory;
   }
 
   private String contextConfigLocation;

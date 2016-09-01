@@ -134,9 +134,12 @@ public class DispatcherServlet extends HttpServlet {
       if (matchedStaticResources) {
         FileInputStream sourceInputStream = null;
         try {
-          sourceInputStream = new FileInputStream(getFixedResourcePath(fixedRequestURI));
+          String fixedResourcePath = req.getRealPath(fixedRequestURI);// getFixedResourcePath(fixedRequestURI);
+          logger.info("Try to load resource {}", fixedResourcePath);
+          sourceInputStream = new FileInputStream(fixedResourcePath);
           IOUtils.write(sourceInputStream, resp.getOutputStream());
         } catch (FileNotFoundException e) {
+          logger.info("Load resource failed for URI:{}", fixedRequestURI, e);
           resp.sendError(HttpServletResponse.SC_NOT_FOUND, fixedRequestURI + " NOT FOUND!");
         } finally {
           if (sourceInputStream != null) {
@@ -147,15 +150,10 @@ public class DispatcherServlet extends HttpServlet {
           }
         }
       } else {
+        logger.info("Not found any resource or mapping for URI:{}", fixedRequestURI);
         resp.sendError(HttpServletResponse.SC_NOT_FOUND, fixedRequestURI + " NOT FOUND!");
       }
     }
-  }
-
-  private String getFixedResourcePath(final String fileRelativePathOfWebRoot) {
-
-    return fileRelativePathOfWebRoot.startsWith("/") ? webRootPath
-      + fileRelativePathOfWebRoot.substring(1) : webRootPath + fileRelativePathOfWebRoot;
   }
 
   private String fixedTargetJsp(final String targetJsp) {
@@ -280,7 +278,6 @@ public class DispatcherServlet extends HttpServlet {
 
     logger.info("init Servlet");
     ServletContext servletContext = getServletContext();
-    logger.info("Real path of '/':[{}]", servletContext.getRealPath("/"));
     String contextPath = servletContext.getContextPath();
     MappingToMethod contextMappingToMethod = mappingToMethod;
     if (isNotBlank(contextPath)) {
@@ -294,7 +291,8 @@ public class DispatcherServlet extends HttpServlet {
       viewSuffix = webApplicationContext.getConfigurations().getProperty("view-suffix");
       String viewResourcesString = webApplicationContext.getConfigurations().getProperty(
         "view-resources");
-      viewResources = viewResourcesString == null ? null : viewResourcesString.split("");
+      viewResources = viewResourcesString == null ? null : viewResourcesString.split(" ");
+      logger.info("Resource views path:[{}]", ArrayUtils.join(viewResources, ","));
       Set<Object> controllers = webApplicationContext.getControllers();
       for (Object controller : controllers) {
         Class<? extends Object> controllerClass = controller.getClass();

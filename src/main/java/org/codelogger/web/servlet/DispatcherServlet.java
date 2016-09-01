@@ -103,12 +103,18 @@ public class DispatcherServlet extends HttpServlet {
     if (method != null) {
       if (isMethodAllowed(method, requestMethod)) {
         if (currentMappingToMethod != null && method != null) {
+          logger.debug("Found matched method, attempt to invoke this method.");
           Object data = invokeMethod(req, resp, currentMappingToMethod);
           if (data != null) {
             Object responseBody = methodToResponseBody.get(method);
             if (responseBody == null) {
-              String targetJsp = fixedTargetJsp(data.toString());
-              req.getRequestDispatcher(targetJsp).forward(req, resp);
+              String targetPath = data.toString();
+              if (targetPath.startsWith("redirect")) {
+                resp.sendRedirect(targetPath.substring(9));
+              } else {
+                String targetJsp = fixedTargetJsp(targetPath);
+                req.getRequestDispatcher(targetJsp).forward(req, resp);
+              }
             } else {
               String json = JsonUtils.toJson(data);
               resp.setContentType(ContentType.APPLICATION_JSON.getMimeType());
@@ -201,8 +207,9 @@ public class DispatcherServlet extends HttpServlet {
         .get(controller.getClass());
       for (TwoTuple<Method, String> methodAndAttributeKeyPaire : methodAndAttributeKeyPaires) {
         try {
-          req.setAttribute(methodAndAttributeKeyPaire.second,
-            methodAndAttributeKeyPaire.first.invoke(controller));
+          logger.debug("Invoke method {} of controller {}.", method, controller);
+          Object invokeResult = methodAndAttributeKeyPaire.first.invoke(controller);
+          req.setAttribute(methodAndAttributeKeyPaire.second, invokeResult);
         } catch (Exception e) {
           logger.warn("Set request attribute {} failed.", methodAndAttributeKeyPaire.second, e);
         }
@@ -263,8 +270,11 @@ public class DispatcherServlet extends HttpServlet {
             }
           }
         }
+        logger.debug("Invoke method {} of controller {} with params {}.", method, controller,
+          params);
         return method.invoke(controller, params);
       } else {
+        logger.debug("Invoke method {} of controller {}.", method, controller);
         return method.invoke(controller);
       }
     } catch (Exception e) {

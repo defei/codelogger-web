@@ -8,6 +8,7 @@ import static org.codelogger.utils.lang.CharacterEncoding.UTF_8;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -226,7 +227,7 @@ public class DispatcherServlet extends HttpServlet {
             for (FileItem item : items) {
               if (item.isFormField()) {
                 String fieldName = item.getFieldName();
-                String fieldValue = item.getString();
+                String fieldValue = item.getString(requestEncoding);
                 requestDataOfThisForm.put(fieldName, fieldValue);
               } else {
                 String fieldName = item.getFieldName();
@@ -266,7 +267,7 @@ public class DispatcherServlet extends HttpServlet {
               }
               if (value != null) {
                 if (parameterType.equals(String.class)) {
-                  params[i] = value;
+                  params[i] = encodingString(value.toString());
                 } else if (parameterType.equals(Integer.class) || parameterType.equals(int.class)) {
                   params[i] = Integer.valueOf(value.toString());
                 } else if (parameterType.equals(Long.class) || parameterType.equals(long.class)) {
@@ -305,6 +306,15 @@ public class DispatcherServlet extends HttpServlet {
     return null;
   }
 
+  private String encodingString(final String originValue) {
+
+    try {
+      return new String(originValue.getBytes(DEFAULT_CHARSET), requestEncoding);
+    } catch (UnsupportedEncodingException e) {
+      return originValue;
+    }
+  }
+
   @Override
   public void init() throws ServletException {
 
@@ -321,6 +331,7 @@ public class DispatcherServlet extends HttpServlet {
     if (webApplicationContext != null) {
       viewPrefix = webApplicationContext.getConfigurations().getProperty("view-prefix");
       viewSuffix = webApplicationContext.getConfigurations().getProperty("view-suffix");
+      requestEncoding = webApplicationContext.getConfigurations().getProperty("request-encoding");
       String viewResourcesString = webApplicationContext.getConfigurations().getProperty(
         "view-resources");
       viewResources = viewResourcesString == null ? null : viewResourcesString.split(" ");
@@ -500,6 +511,8 @@ public class DispatcherServlet extends HttpServlet {
 
   private String webRootPath = PathUtils.getWebProjectPath(this);
 
+  private String requestEncoding = "UTF-8";
+
   private String viewPrefix;
 
   private String viewSuffix;
@@ -513,6 +526,8 @@ public class DispatcherServlet extends HttpServlet {
   private ControllerClassToRequestAttribute controllerClassToRequestAttribute = new ControllerClassToRequestAttribute();
 
   private WebApplicationContext webApplicationContext;
+
+  public static final String DEFAULT_CHARSET = "ISO-8859-1";
 
   private static final String isDispatchedKey = "_CL_DS_D_";
 

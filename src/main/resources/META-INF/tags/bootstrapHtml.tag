@@ -5,6 +5,7 @@
 <html>
 <head>
 	<title>${title}</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 	<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes"/>
 	<base href="${pageContext.request.contextPath}/">
 	<link rel="icon" href="favicon.ico"/>

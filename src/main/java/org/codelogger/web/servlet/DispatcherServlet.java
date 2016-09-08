@@ -254,7 +254,7 @@ public class DispatcherServlet extends HttpServlet {
               if (annotation instanceof Param) {
                 Param param = (Param) annotation;
                 Object parameterValue = isMultipartContent ? requestDataOfThisForm.get(param
-                  .value()) : req.getParameter(param.value());
+                  .value()) : encodingString(req.getParameter(param.value()));
                 if (param.required() && parameterValue == null && isBlank(param.defaultValue())) {
                   resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
                     "Missing Param:" + param.value());
@@ -267,7 +267,7 @@ public class DispatcherServlet extends HttpServlet {
               }
               if (value != null) {
                 if (parameterType.equals(String.class)) {
-                  params[i] = encodingString(value.toString());
+                  params[i] = value;
                 } else if (parameterType.equals(Integer.class) || parameterType.equals(int.class)) {
                   params[i] = Integer.valueOf(value.toString());
                 } else if (parameterType.equals(Long.class) || parameterType.equals(long.class)) {
@@ -309,7 +309,8 @@ public class DispatcherServlet extends HttpServlet {
   private String encodingString(final String originValue) {
 
     try {
-      return new String(originValue.getBytes(DEFAULT_CHARSET), requestEncoding);
+      return originValue == null ? null : new String(originValue.getBytes(DEFAULT_CHARSET),
+        requestEncoding);
     } catch (UnsupportedEncodingException e) {
       return originValue;
     }

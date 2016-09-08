@@ -447,7 +447,7 @@ public class DispatcherServlet extends HttpServlet {
 
     public Method getMethod(final RequestMethod requestMethod) {
 
-      return requestMethodToMethod.get(requestMethod);
+      return requestMethodToMethod == null ? null : requestMethodToMethod.get(requestMethod);
     }
 
   }

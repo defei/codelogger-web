@@ -380,7 +380,7 @@ public class DispatcherServlet extends HttpServlet {
             logger.info("set mapping method {} to mapping:'{}'", method, fullMappingOfMethod);
             methodMappingToMethod.setController(controller);
             RequestMethod[] supportedMethods = requestMappingsOfMethod.method();
-            if (supportedMethods == null) {
+            if (ArrayUtils.isEmpty(supportedMethods)) {
               supportedMethods = RequestMethod.values();
             }
             for (RequestMethod supportedMethod : supportedMethods) {
